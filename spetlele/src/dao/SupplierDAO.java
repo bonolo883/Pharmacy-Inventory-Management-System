@@ -11,17 +11,19 @@ public class SupplierDAO {
     public void addSupplier(
             String name,
             String contact,
+            String email,
             String address) throws Exception {
 
         try (Connection con = DBConnection.getConnection()) {
             String sql = "INSERT INTO suppliers "
-                    + "(supplierName, contact, address) "
-                    + "VALUES (?, ?, ?)";
+                    + "(supplierName, email, contact, address) "
+                    + "VALUES (?, ?, ?,?)";
             
             PreparedStatement ps = con.prepareStatement(sql);
             
             ps.setString(1, name);
             ps.setString(2, contact);
+             ps.setString(1, name);
             ps.setString(3, address);
             
             ps.executeUpdate();
@@ -34,6 +36,7 @@ public class SupplierDAO {
     public void updateSupplier(
             int supplierId,
             String name,
+            String email,
             String contact,
             String address) throws Exception {
 
@@ -41,6 +44,7 @@ public class SupplierDAO {
             String sql = "UPDATE suppliers "
                     + "SET supplierName = ?, "
                     + "contact = ?, "
+                    + "email = ?, "
                     + "address = ? "
                     + "WHERE supplierID = ?";
             
@@ -48,8 +52,9 @@ public class SupplierDAO {
             
             ps.setString(1, name);
             ps.setString(2, contact);
-            ps.setString(3, address);
-            ps.setInt(4, supplierId);
+            ps.setString(3, email);
+            ps.setString(4, address);
+            ps.setInt(5, supplierId);
             
             ps.executeUpdate();
             
