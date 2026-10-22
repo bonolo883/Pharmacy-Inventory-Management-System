@@ -1,6 +1,6 @@
 
 package gui;
-import dao.userDAO;
+import dao.UserDAO;
 import javax.swing.*;
 import java.awt.event.*;
 
@@ -13,7 +13,7 @@ public class loginForm extends JFrame {
     public loginForm() {
 
         setTitle("PIMS Login");
-        setSize(350,250);
+        setSize(380,260);
         setLayout(null);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
 
@@ -57,12 +57,14 @@ public class loginForm extends JFrame {
 
     private void login() {
 
-        userDAO dao = new userDAO();
-
-        String role =
-                dao.login(
-                        usertxt.getText(),
-                        String.valueOf(passtxt.getPassword()));
+        UserDAO dao = new UserDAO();
+        String role;
+        try {
+            role = dao.login(usertxt.getText().trim(), String.valueOf(passtxt.getPassword()));
+        } catch (IllegalStateException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Database connection", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
         if(role == null) {
             JOptionPane.showMessageDialog(this,"Invalid Login");
@@ -70,7 +72,7 @@ public class loginForm extends JFrame {
             new adminDashboard();
             dispose();
         } else {
-            new cashierDashboard();
+            new cashierDashboard(dao.getLastUserId());
             dispose();
         }
     }
