@@ -1,420 +1,136 @@
-
 package gui;
 
 import dao.MedicineDAO;
+import dao.SupplierDAO;
 import database.DBConnection;
-
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.List;
 
 public class MedicinePanel extends JPanel {
-
-    private JTextField txtName;
-    private JTextField txtCategory;
-    private JTextField txtPrice;
-    private JTextField txtQty;
-    private JTextField txtSearch;
-
-    private JButton btnSave;
-    private JButton btnUpdate;
-
-    private JTable tblMedicine;
-    private DefaultTableModel model;
-
-    private int selectedMedicineId = -1;
+    private final JTextField name = new JTextField(16);
+    private final JTextField category = new JTextField(16);
+    private final JTextField company = new JTextField(16);
+    private final JTextField type = new JTextField(16);
+    private final JTextField price = new JTextField(16);
+    private final JTextField quantity = new JTextField(16);
+    private final JTextField reorder = new JTextField("10", 16);
+    private final JTextField expiry = new JTextField(16);
+    private final JTextField search = new JTextField(20);
+    private final JComboBox<SupplierChoice> supplier = new JComboBox<>();
+    private final String[] columns = {"ID", "Name", "Category", "Company", "Type", "Price", "Stock", "Reorder", "Expiry", "Supplier ID"};
+    private final DefaultTableModel model = new DefaultTableModel(columns, 0) {
+        @Override public boolean isCellEditable(int row, int column) { return false; }
+    };
+    private final JTable table = new JTable(model);
+    private int selectedId = -1;
 
     public MedicinePanel() {
-
-        setLayout(null);
-
-        // NAME
-        JLabel lblName = new JLabel("Name:");
-        lblName.setBounds(50, 40, 100, 25);
-        add(lblName);
-
-        txtName = new JTextField();
-        txtName.setBounds(150, 40, 180, 25);
-        add(txtName);
-        
-        // CATEGORY
-        JLabel lblCategory = new JLabel("Category:");
-        lblCategory.setBounds(50, 80, 100, 25);
-        add(lblCategory);
-
-        txtCategory = new JTextField();
-        txtCategory.setBounds(150, 80, 180, 25);
-        add(txtCategory);
-
-        // PRICE
-        JLabel lblPrice = new JLabel("Price:");
-        lblPrice.setBounds(50, 120, 100, 25);
-        add(lblPrice);
-
-        txtPrice = new JTextField();
-        txtPrice.setBounds(150, 120, 180, 25);
-        add(txtPrice);
-
-        // QUANTITY
-        JLabel lblQty = new JLabel("Quantity:");
-        lblQty.setBounds(50, 160, 100, 25);
-        add(lblQty);
-
-        txtQty = new JTextField();
-        txtQty.setBounds(150, 160, 180, 25);
-        add(txtQty);
-
-        // SAVE BUTTON
-        btnSave = new JButton("Save");
-        btnSave.setBounds(150, 200, 85, 30);
-        add(btnSave);
-        
-        //delet btn
-        JButton btnDelete =new JButton("Delete"); 
-        btnDelete.setBounds( 420,220,100,30);
-        add(btnDelete);
-        
-        // UPDATE BUTTON
-        btnUpdate = new JButton("Update");
-        btnUpdate.setBounds(245, 200, 85, 30);
-        add(btnUpdate);
-
-        // SEARCH
-        JLabel lblSearch = new JLabel("Search:");
-        lblSearch.setBounds(400, 40, 70, 25);
-        add(lblSearch);
-
-        txtSearch = new JTextField();
-        txtSearch.setBounds(460, 40, 220, 25);
-        add(txtSearch);
-
-        // TABLE
-        model = new DefaultTableModel();
-
-        model.addColumn("ID");
-        model.addColumn("Name");
-        model.addColumn("Category");
-        model.addColumn("Price");
-        model.addColumn("Quantity");
-
-        tblMedicine = new JTable(model);
-
-        JScrollPane scrollPane =
-                new JScrollPane(tblMedicine);
-
-        scrollPane.setBounds(400,80,550,350);
-
-        add(scrollPane);
-
-        btnSave.addActionListener(e -> saveMedicine());
-
-        btnUpdate.addActionListener(e -> updateMedicine());
-        btnUpdate.addActionListener(e -> {
-        MedicineDAO dao =
-                    new MedicineDAO();
-
-            dao.updateMedicine(
-                    selectedMedicineId,
-                    txtName.getText(),
-                    txtCategory.getText(),
-                    Double.parseDouble(
-                            txtPrice.getText()),
-
-                    Integer.parseInt(
-                            txtQty.getText()));
-
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Medicine Updated");
-
-            loadMedicines();
+        setLayout(new BorderLayout(8, 8));
+        JPanel top = new JPanel(new BorderLayout(6, 6));
+        JPanel form = new JPanel(new GridLayout(0, 4, 6, 6));
+        addField(form, "Medicine name", name); addField(form, "Category", category);
+        addField(form, "Company", company); addField(form, "Type", type);
+        addField(form, "Unit price", price); addField(form, "Quantity in stock", quantity);
+        addField(form, "Reorder level", reorder); addField(form, "Expiry (YYYY-MM-DD)", expiry);
+        addField(form, "Supplier", supplier);
+        JButton add = new JButton("Add medicine"); JButton update = new JButton("Update selected");
+        JButton delete = new JButton("Delete selected"); JButton clear = new JButton("Clear");
+        form.add(add); form.add(update); form.add(delete); form.add(clear);
+        top.add(form, BorderLayout.CENTER);
+        JPanel searchRow = new JPanel(new FlowLayout(FlowLayout.LEFT)); searchRow.add(new JLabel("Search medicine:")); searchRow.add(search);
+        top.add(searchRow, BorderLayout.SOUTH);
+        add(top, BorderLayout.NORTH); add(new JScrollPane(table), BorderLayout.CENTER);
+        add.addActionListener(e -> save(false)); update.addActionListener(e -> save(true));
+        delete.addActionListener(e -> delete()); clear.addActionListener(e -> clear());
+        table.getSelectionModel().addListSelectionListener(e -> { if (!e.getValueIsAdjusting() && table.getSelectedRow() >= 0) selectRow(); });
+        search.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { refresh(); }
+            public void removeUpdate(DocumentEvent e) { refresh(); }
+            public void changedUpdate(DocumentEvent e) { refresh(); }
         });
-        btnDelete.addActionListener(e -> {
-
-            int option =
-                    JOptionPane.showConfirmDialog( null, "Delete this medicine?","Confirm",
-                            JOptionPane.YES_NO_OPTION);
-
-            if(option ==JOptionPane.YES_OPTION) {
-                MedicineDAO dao = new MedicineDAO();
-                dao.deleteMedicine(selectedMedicineId);
-                JOptionPane.showMessageDialog(null,"Medicine Deleted");
-                loadMedicines();
-            }
-        });
-        txtSearch.addActionListener(
-                e -> searchMedicine()
-        );
-
-        txtSearch.getDocument()
-                .addDocumentListener(
-                        new javax.swing.event.DocumentListener() {
-
-                            public void insertUpdate(
-                                    javax.swing.event.DocumentEvent e) {
-                                searchMedicine();
-                            }
-
-                            public void removeUpdate(
-                                    javax.swing.event.DocumentEvent e) {
-                                searchMedicine();
-                            }
-
-                            public void changedUpdate(
-                                    javax.swing.event.DocumentEvent e) {
-                                searchMedicine();
-                            }
-                        }
-                );
-
-        // TABLE CLICK
-        tblMedicine.addMouseListener(
-                new java.awt.event.MouseAdapter() {
-
-                    @Override
-                    public void mouseClicked(
-                            java.awt.event.MouseEvent e) {
-
-                        int row =
-                                tblMedicine.getSelectedRow();
-
-                        if (row >= 0) {
-
-                            selectedMedicineId =
-                                    Integer.parseInt(
-                                            model.getValueAt(
-                                                    row, 0
-                                            ).toString()
-                                    );
-
-                            txtName.setText(
-                                    model.getValueAt(
-                                            row, 1
-                                    ).toString()
-                            );
-
-                            txtCategory.setText(
-                                    model.getValueAt(
-                                            row, 2
-                                    ).toString()
-                            );
-
-                            txtPrice.setText(
-                                    model.getValueAt(
-                                            row, 3
-                                    ).toString()
-                            );
-
-                            txtQty.setText(
-                                    model.getValueAt(
-                                            row, 4
-                                    ).toString()
-                            );
-                        }
-                    }
-                }
-        );
-
-        // Load medicines when panel opens
-        loadMedicines();
+        loadSuppliers(); refresh();
     }
 
-    // SAVE MEDICINE
+    private void addField(JPanel form, String label, Component field) { form.add(new JLabel(label)); form.add(field); }
 
-    private void saveMedicine() {
-
+    private void loadSuppliers() {
+        supplier.removeAllItems(); supplier.addItem(new SupplierChoice(null, "Unassigned"));
         try {
-
-            String medicineName =
-                    txtName.getText().trim();
-
-            String medicineCategory =
-                    txtCategory.getText().trim();
-
-            double medicinePrice =
-                    Double.parseDouble(
-                            txtPrice.getText().trim()
-                    );
-
-            int quantity =
-                    Integer.parseInt(
-                            txtQty.getText().trim()
-                    );
-
-            if (medicineName.isEmpty()
-                    || medicineCategory.isEmpty()) {
-
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Please enter all information."
-                );
-
-                return;
-            }
-
-            MedicineDAO dao =
-                    new MedicineDAO();
-
-            dao.addMedicine(
-                    medicineName,
-                    medicineCategory,
-                    medicinePrice,
-                    quantity
-            );
-
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Medicine saved successfully!"
-            );
-
-            clearFields();
-
-            loadMedicines();
-
-        } catch (NumberFormatException e) {
-
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Price and quantity must be numbers.",
-                    "Invalid Input",
-                    JOptionPane.ERROR_MESSAGE
-            );
-
-        } catch (Exception e) {
-
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Error: " + e.getMessage(),
-                    "Database Error",
-                    JOptionPane.ERROR_MESSAGE
-            );
-        }
+            List<Object[]> rows = new SupplierDAO().findAll();
+            for (Object[] row : rows) supplier.addItem(new SupplierChoice((Integer) row[0], String.valueOf(row[1])));
+        } catch (Exception ex) { JOptionPane.showMessageDialog(this, "Could not load suppliers: " + ex.getMessage(), "Database", JOptionPane.ERROR_MESSAGE); }
     }
 
-    // UPDATE MEDICINE
-    private void updateMedicine() {
-
-        if (selectedMedicineId == -1) {
-
-            JOptionPane.showMessageDialog(this,"Please select a medicine first.");
-
-            return;
-        }
-
+    private void save(boolean editing) {
         try {
+            String medicineName = name.getText().trim(); String medicineCategory = category.getText().trim();
+            if (medicineName.isEmpty() || medicineCategory.isEmpty()) throw new IllegalArgumentException("Medicine name and category are required.");
+            double unitPrice = Double.parseDouble(price.getText().trim());
+            int stock = Integer.parseInt(quantity.getText().trim()); int reorderLevel = Integer.parseInt(reorder.getText().trim());
+            if (unitPrice < 0 || stock < 0 || reorderLevel < 0) throw new IllegalArgumentException("Price, stock, and reorder level cannot be negative.");
+            java.sql.Date expiryDate = expiry.getText().trim().isEmpty() ? null : java.sql.Date.valueOf(expiry.getText().trim());
+            SupplierChoice selectedSupplier = (SupplierChoice) supplier.getSelectedItem();
+            Integer supplierId = selectedSupplier == null ? null : selectedSupplier.id;
+            MedicineDAO dao = new MedicineDAO();
+            if (editing) {
+                if (selectedId < 0) throw new IllegalArgumentException("Select a medicine first.");
+                dao.updateMedicine(selectedId, medicineName, medicineCategory, blankToNull(company.getText()), blankToNull(type.getText()), unitPrice, stock, reorderLevel, expiryDate, supplierId);
+            } else dao.addMedicine(medicineName, medicineCategory, blankToNull(company.getText()), blankToNull(type.getText()), unitPrice, stock, reorderLevel, expiryDate, supplierId);
+            clear(); refresh();
+        } catch (IllegalArgumentException ex) { JOptionPane.showMessageDialog(this, "Check the fields. Expiry must use YYYY-MM-DD.\n" + ex.getMessage(), "Invalid medicine", JOptionPane.ERROR_MESSAGE); }
+        catch (Exception ex) { JOptionPane.showMessageDialog(this, ex.getMessage(), "Could not save medicine", JOptionPane.ERROR_MESSAGE); }
+    }
 
-            String sql =
-                    "UPDATE medicines SET medicineName = ?, category = ?, unitPrice = ?, quantityInStock = ? WHERE medicineID = ?";
-            Connection con =DBConnection.getConnection();
+    private String blankToNull(String value) { String trimmed = value.trim(); return trimmed.isEmpty() ? null : trimmed; }
+    private String textValue(Object value) { return value == null ? "" : value.toString(); }
 
-            PreparedStatement ps = con.prepareStatement(sql);
-
-            ps.setString(1,txtName.getText().trim() );
-
-            ps.setString(2,txtCategory.getText().trim());
-
-            ps.setDouble(3,Double.parseDouble(txtPrice.getText().trim()));
-
-            ps.setInt(4, Integer.parseInt(txtQty.getText().trim() ) );
-
-            ps.setInt(5, selectedMedicineId);
-
-            ps.executeUpdate();
-
-            ps.close();
-            con.close();
-
-            JOptionPane.showMessageDialog(this,"Medicine updated successfully!");
-
-            clearFields();
-
-            loadMedicines();
-
-        } catch (NumberFormatException e) {
-
-            JOptionPane.showMessageDialog( this,"Price and quantity must be numbers.",
-                    "Invalid Input",JOptionPane.ERROR_MESSAGE);
-
-        } catch (Exception e) {
-
-            JOptionPane.showMessageDialog( this, "Error updating medicine: "
-                    + e.getMessage(),"Database Error",JOptionPane.ERROR_MESSAGE);
+    private void selectRow() {
+        int row = table.convertRowIndexToModel(table.getSelectedRow());
+        selectedId = ((Number) model.getValueAt(row, 0)).intValue();
+        name.setText(String.valueOf(model.getValueAt(row, 1))); category.setText(String.valueOf(model.getValueAt(row, 2)));
+        company.setText(textValue(model.getValueAt(row, 3))); type.setText(textValue(model.getValueAt(row, 4)));
+        price.setText(String.valueOf(model.getValueAt(row, 5))); quantity.setText(String.valueOf(model.getValueAt(row, 6)));
+        reorder.setText(String.valueOf(model.getValueAt(row, 7))); expiry.setText(textValue(model.getValueAt(row, 8)));
+        Object supplierId = model.getValueAt(row, 9);
+        for (int i = 0; i < supplier.getItemCount(); i++) {
+            SupplierChoice choice = supplier.getItemAt(i);
+            if (supplierId == null ? choice.id == null : choice.id != null && choice.id.equals(((Number) supplierId).intValue())) { supplier.setSelectedIndex(i); break; }
         }
     }
 
-    // LOAD MEDICINES
-
-    private void loadMedicines() {
-        searchMedicine();
+    private void delete() {
+        if (selectedId < 0) { JOptionPane.showMessageDialog(this, "Select a medicine first."); return; }
+        if (JOptionPane.showConfirmDialog(this, "Delete this medicine?", "Confirm", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
+        try { new MedicineDAO().deleteMedicine(selectedId); clear(); refresh(); }
+        catch (Exception ex) { JOptionPane.showMessageDialog(this, "A medicine already included in a sale cannot be deleted.\n" + ex.getMessage(), "Delete medicine", JOptionPane.ERROR_MESSAGE); }
     }
 
-    // SEARCH MEDICINES
+    private void clear() {
+        selectedId = -1; table.clearSelection(); name.setText(""); category.setText(""); company.setText(""); type.setText("");
+        price.setText(""); quantity.setText(""); reorder.setText("10"); expiry.setText(""); supplier.setSelectedIndex(0);
+    }
 
-    private void searchMedicine() {
-
+    private void refresh() {
         model.setRowCount(0);
-
-        String search =txtSearch == null ? "": txtSearch.getText().trim();
-
-        String sql =
-                "SELECT medicineID, medicineName, "
-                + "category, unitPrice, quantityInStock "
-                + "FROM medicines "
-                + "WHERE medicineName LIKE ? "
-                + "ORDER BY medicineName";
-
-        try {
-
-            Connection con =DBConnection.getConnection();
-
-            PreparedStatement ps =con.prepareStatement(sql);
-
-            ps.setString( 1, "%" + search + "%" );
-
-            ResultSet rs = ps.executeQuery();
-
-            while (rs.next()) {
-
-                model.addRow(
-                        new Object[]{
-                                rs.getInt("medicineID"),
-
-                                rs.getString("medicineName" ),
-
-                                rs.getString("category"),
-
-                                rs.getDouble( "unitPrice"),
-
-                                rs.getInt("quantityInStock")
-                        }
-                );
+        String sql = "SELECT medicine_id, name, category, company, medicine_type, price, quantity_in_stock, reorder_level, expiry_date, supplier_id FROM medicines WHERE name LIKE ? ORDER BY name";
+        try (Connection con = DBConnection.getConnection(); PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, "%" + search.getText().trim() + "%");
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) model.addRow(new Object[]{rs.getInt("medicine_id"), rs.getString("name"), rs.getString("category"), rs.getString("company"), rs.getString("medicine_type"), rs.getBigDecimal("price"), rs.getInt("quantity_in_stock"), rs.getInt("reorder_level"), rs.getDate("expiry_date"), (Object) rs.getObject("supplier_id")});
             }
-
-            rs.close();
-            ps.close();
-            con.close();
-
-        } catch (Exception e) {
-
-            JOptionPane.showMessageDialog(
-                    this, "Could not load medicines:\n"+ e.getMessage(),
-                    "Database Error",JOptionPane.ERROR_MESSAGE );
-        }
+        } catch (Exception ex) { if (isShowing()) JOptionPane.showMessageDialog(this, "Could not load medicines: " + ex.getMessage(), "Database", JOptionPane.ERROR_MESSAGE); }
     }
 
-    // CLEAR FIELDs
-    private void clearFields() {
-
-        txtName.setText("");
-        txtCategory.setText("");
-        txtPrice.setText("");
-        txtQty.setText("");
-
-        selectedMedicineId = -1;
-
-        tblMedicine.clearSelection();
+    private static class SupplierChoice {
+        private final Integer id; private final String label;
+        SupplierChoice(Integer id, String label) { this.id = id; this.label = label; }
+        @Override public String toString() { return label; }
     }
 }
